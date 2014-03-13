@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		  	sockjs = new SockJS(sockjs_url);
 		  	multiplexer = new WebSocketMultiplex(sockjs);
 			io = multiplexer.channel(data.channel);
-			
+			console.log('I am player', data.player);
 			window._io = {
 				listeners: [],
 				oneTimeListeners: [],
@@ -61,14 +61,14 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 
 			io.onopen = function() {
-				// console.log('sockjs: open');
-				if (data.player === 2)
+				console.log('sockjs: open');
+				if (Number(data.player) === 2)
 					io.send(JSON.stringify({player: data.player, start: Date.now() + 5500}));
 			};
 
 			io.onmessage = function(event) {
 			    var msg = JSON.parse(event.data);
-			    //console.log('message:', msg);
+			    console.log('message:', msg);
 			    for (var i = 0, len = window._io.listeners.length; i < len; i++) {
 			    	window._io.listeners[i](msg);
 			    }
@@ -165,7 +165,8 @@ document.addEventListener("DOMContentLoaded", function () {
 							});
 
 							window._io.addOneTimeListener(function (msg) {
-							  	gameOver(timer, 'Connection Lost :(');
+							  	console.log('msg sent was dead');
+							  	//gameOver(timer, 'Connection Lost :(');
 							}, function (msg) {
 								return !!msg.dead;
 							});

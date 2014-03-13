@@ -91,6 +91,21 @@ if (cluster.isMaster) {
 				}
 			});
 		}
+		else if (url.parse(req.url).pathname === '/game/players') {
+			var origin = (req.headers.origin || "*");
+			
+			// res.writeHead();
+			var headers = {};
+			headers['Content-Type'] = 'text/plain';
+			headers['Access-Control-Allow-Origin'] = '*';
+	        headers['Access-Control-Allow-Headers'] = 'X-Requested-With';
+			res.writeHead(200, headers);
+			client.llen('listOfChannels', function(err, listSize) {
+				if (err) console.log(err);
+				res.write(JSON.stringify({player: 0, playerNum: listSize}));
+			});
+			
+		}
 		else {
 			res.writeHead(200, {'Content-Type': 'text/html'});
 			res.end('Go away!');
