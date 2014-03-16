@@ -1,15 +1,17 @@
 document.addEventListener("DOMContentLoaded", function () {
   	var waitingInterval, userNumInterval;
-  	var sockjs_url = 'http://2048.stolarsky.com:3000/game/sockets', sockjs, multiplexer;
+  	var sockjs_url = 'http://localhost:3000/game/sockets', sockjs, multiplexer;
   	
   	// Wait till the browser is ready to render the game (avoids glitches)
  	window.requestAnimationFrame(function () {
 	 	var startNewGame = function () {
+	 		$('#player-msg').addClass('text-center');
 	 		$('#game-start-btn').on('click', function () {
+				$('#player-msg').removeClass('text-center');
 				$('#player-msg').html('<span style="float:left">Searching for competitor </span>\n<span class="ellipsis">.</span>\n<span class="ellipsis">.</span>\n<span class="ellipsis">.</span>');
 				$('#game-stats').fadeIn();
 				userNumInterval = setInterval(function () {
-					$.get('http://2048.stolarsky.com:3000/game/players', function (data) {
+					$.get('http://localhost:3000/game/players', function (data) {
 						data = JSON.parse(data);
 						$('#num-players').html('Number of current players: ' + data.numPlayers);
 						$('#num-games').html('Number of current games: ' + data.numGames);
@@ -94,6 +96,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			window._io.addOneTimeListener(function (msg) {
 			    clearInterval(waitingInterval);
 				clearInterval(userNumInterval);
+				$('#player-msg').addClass('text-center');
 			    $('#player-msg').html('Opponent Found!');
 			    $('#game-stats').fadeOut();
 			    setTimeout(function () {
@@ -104,7 +107,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				   	var opposingPlayer = window._gameBoard.player === 1 ? 2 : 1;
 				    var times = 3;
 				    var countdown = setInterval(function() {
-						// Countdown messages	
+						// Countdown messages
+						$('#player-msg').removeClass('text-center');	
 				   		$('#player-msg').html('<div style="text-align: center">Game Will start in <strong>' + times + '</strong></div>');
 				   		times--;
 				   		if (times === -1) {
@@ -139,7 +143,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								}, 3000);
 							};
 
-				   			var gameTimeLeft = 120;//game timer
+				   			var gameTimeLeft = 20;//game timer
 				   			var timer = setInterval(function () {
 								var sec; 
 	    						if (gameTimeLeft % 60 === 0)
