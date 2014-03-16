@@ -1,118 +1,116 @@
 'use strict';
 
 var http = require('http'),
-	url = require('url'),
-	cluster = require('cluster'),
-	numCPUs = require('os').cpus().length,
-	lodash = require('lodash'),
-	uuid = require('node-uuid'),
-  	sockjs = require('sockjs'),
-  	multiplex_server = require('websocket-multiplex'),
-  	redis = require("redis"),
-    client = redis.createClient();
+    url = require('url'),
+    winston = require('winston'),
+    uuid = require('node-uuid'),
+    sockjs = require('sockjs'),
+    GameLobby = require('./GameLobby'),
+    redis = require("redis"),
+    client = redis.createClient(),
+    gamersHashMap = {},
+    gamesBeingPlayed = 0,
+    gameStats = JSON.stringify({numPlayers: 0, numGames: 0}),
+    channelHashMap = {},
+    channelId,
+    startLocations;
 
-if (cluster.isMaster) {
-  // Fork workers.
-  for (var i = 0; i < numCPUs; i++) {
-    cluster.fork();
-  }
+var CROSS_ORIGIN_HEADERS = {};
+CROSS_ORIGIN_HEADERS['Content-Type'] = 'text/plain';
+CROSS_ORIGIN_HEADERS['Access-Control-Allow-Origin'] = '*';
+CROSS_ORIGIN_HEADERS['Access-Control-Allow-Headers'] = 'X-Requested-With';
+var sockjsServer = sockjs.createServer();
+sockjsServer.setMaxListeners(0);
+var GRID_SIZE = 4;
 
-  cluster.on('exit', function(worker, code, signal) {
-    console.log('worker ' + worker.process.pid + ' died');
+var cleanup = function (channelId) {
+	if (channelHashMap[channelId]) {
+		winston.info('===Game Cleanup===');
+		winston.info('channelId:', channelId);
+		winston.info('channelHashMap[channelId].gamer1.id:', channelHashMap[channelId].gamer1.id);
+		winston.info('channelHashMap[channelId].gamer2.id:', channelHashMap[channelId].gamer2.id);
+		gamersHashMap[channelHashMap[channelId].gamer1.id] = void 0;
+	  gamersHashMap[channelHashMap[channelId].gamer2.id] = void 0;
+	  channelHashMap[channelId] = void 0;
+	  gamesBeingPlayed--;
+	}
+};
+
+sockjsServer.on('connection', function(io) {
+  client.lpush('gamers', io.id);
+  io.on('close', function() {
+  	client.lrem('gamers', 0, io.id, function (err, count) {
+  		if (err) winston.log('err', err);
+  		winston.info('Removed gamer from waiting queue');
+  	});
   });
-} else {
-	var sockjsServer = sockjs.createServer();
-	var multiplexer = new multiplex_server.MultiplexServer(sockjsServer);
-	var GRID_SIZE = 4;
-	// console.log('url.parse(req.url):', qs.parse(url.parse(req.url).pathname));
-	// console.log('req.url:', req.url);
+  gamersHashMap[io.id] = io;
+});
 
-	var createChannel = function (channelId, cb) {
-		var newChannel = multiplexer.registerChannel(channelId);
+var startCellLocations = function (numLocations, size) {
+  var unique = function (arr, obj) {
+    for (var i = 0, len = arr.length; i < len; i++) {
+      if (arr[i].x === obj.x && arr[i].y === obj.y) 
+        return false;
+    }
+    return true;
+  };
+  var getRandomInt = function (min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }  
+  
+  var loc = [];
+  for (var i = 0; i < numLocations; i++) {
+    var obj = {x: getRandomInt(0, size - 1), y: getRandomInt(0, size - 1), value: (Math.random() < 0.9 ? 2 : 4)};
+    if (unique(loc, obj)) loc.push(obj);
+    else --i;
+  }
+  return loc;
+};
 
-		
-		var startCellLocations = function (numLocations, size) {
-	  		function getRandomInt(min, max) {
-			  return Math.floor(Math.random() * (max - min + 1)) + min;
-			}
-			var loc = [];
-			for (var i = 0; i < numLocations; i++) {
-				var obj = {x: getRandomInt(0, size - 1), y: getRandomInt(0, size - 1), value: (Math.random() < 0.9 ? 2 : 4)};
-				if (!lodash.contains(loc, obj)) loc.push(obj);
-				else --i;
-			}
-			return loc;
-	  	};
+setInterval(function () {
+  client.llen('gamers', function (err, len) {
+    if (err) winston.log('err', err);
+    winston.info('len:', len);
+    if (len >= 2) {
+      client.lpop('gamers', function (err1, gamer1) {
+        if (err1) winston.log('err', err1);
+        client.lpop('gamers', function (err2, gamer2) {
+          if (err2) winston.log('err', err2);
+          winston.info('===New Game===');
+          winston.info('channelId:',  channelId);
+          winston.info('gamer1:', gamer1);
+          winston.info('gamer2:', gamer2);
+          channelId = uuid.v4();
+          startLocations = startCellLocations (2, GRID_SIZE);
+          gamesBeingPlayed++;
+          channelHashMap[channelId] = new GameLobby (channelId, gamersHashMap[gamer1], gamersHashMap[gamer2], startLocations, GRID_SIZE, cleanup);
+        });
+      });
+    }
+  })
+}, 500);
 
-		var startLocations = startCellLocations (2, GRID_SIZE);
-		var _counter = 0;
-		newChannel.on('connection', function(io) {
-		    io.write(JSON.stringify({player: 0, startCells: startLocations, size: GRID_SIZE}));
+setInterval(function () {
+	client.llen('gamers', function(err, listSize) {
+    if (err) winston.log('err', err);
+    winston.info('Number of current players: ' + (listSize + gamesBeingPlayed * 2));
+    winston.info('Number of current games: ' + gamesBeingPlayed);
+    gameStats = JSON.stringify({numPlayers: (listSize + gamesBeingPlayed * 2), numGames: gamesBeingPlayed});
+  });
+}, 1000);
 
-		    io.on('data', function(data) {
-		        io.write(data);
-		    });
-		    io.on('close', function() {
-		        io.write(JSON.stringify({player: 0, dead: true}));
-		        // newChannel.destroy();
-		    });
-		});
+var server = http.createServer(function (req, res) {
+  if (url.parse(req.url).pathname === '/game/players') {
+    res.writeHead(200, CROSS_ORIGIN_HEADERS);
+    res.write(gameStats);
+    res.end();
+  }
+  else {
+    res.writeHead(200, {'Content-Type': 'text/html'});
+    res.end('Go away <3');
+  }
+});
 
-		cb();
-	};
-
-	var freeChannels = [];
-	var server = http.createServer(function (req, res) {
-		if (url.parse(req.url).pathname === '/game/new') {
-			var origin = (req.headers.origin || "*");
-			
-			// res.writeHead();
-			var headers = {};
-			headers['Content-Type'] = 'text/plain';
-			headers['Access-Control-Allow-Origin'] = '*';
-	        headers['Access-Control-Allow-Headers'] = 'X-Requested-With';
-			res.writeHead(200, headers);
-			client.llen('listOfChannels', function(err, listSize) {
-				if (err) console.log(err);
-				if (listSize === 0) {
-					var channelId = uuid.v4();
-					createChannel(channelId, function (err) {
-						if (err) console.log('err:', err);
-						client.lpush('listOfChannels', channelId);
-						freeChannels.push(channelId);
-						res.end(JSON.stringify({player: 1, channel: channelId}));
-					});
-				}
-				else {
-					client.lpop('listOfChannels', function (error, channelId) {
-						if (error) console.log(error);
-						res.end(JSON.stringify({player: 2, channel: channelId}));
-					});
-				}
-			});
-		}
-		else if (url.parse(req.url).pathname === '/game/players') {
-			var origin = (req.headers.origin || "*");
-			
-			// res.writeHead();
-			var headers = {};
-			headers['Content-Type'] = 'text/plain';
-			headers['Access-Control-Allow-Origin'] = '*';
-	        headers['Access-Control-Allow-Headers'] = 'X-Requested-With';
-			res.writeHead(200, headers);
-			client.llen('listOfChannels', function(err, listSize) {
-				if (err) console.log(err);
-				res.write(JSON.stringify({player: 0, playerNum: listSize}));
-			});
-			
-		}
-		else {
-			res.writeHead(200, {'Content-Type': 'text/html'});
-			res.end('Go away!');
-		}
-
-	});
-
-	sockjsServer.installHandlers(server, {prefix:'/game/sockets'});
-	server.listen(3000);
-}
+sockjsServer.installHandlers(server, {prefix:'/game/sockets'});
+server.listen(3000);

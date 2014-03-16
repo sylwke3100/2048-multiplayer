@@ -6,11 +6,11 @@ function GameManager(options, InputManager, Actuator, socket) {
   
   if (options.online) {
     this.inputManager = new InputManager (options.player);
-    this.actuator     = new Actuator(1);
+    this.actuator     = new Actuator(1, true);
   }
   else {
     this.inputManager = new InputManager;
-    this.actuator     = new Actuator(0);
+    this.actuator     = new Actuator(0, false);
 
     this.inputManager.on("move", function (direction) {
       socket.send(JSON.stringify({player: options.player, move: direction}));
@@ -94,7 +94,6 @@ GameManager.prototype.actuate = function () {
   var isItOver = (this.over || window._io.gameOver);
   window._io.addListener(function (msg) {
     if (!(msg.player === self.options.otherPlayer && msg.gameEnd)) return;
-    
     self.over = self.won = true;
     self.actuator.actuate(self.grid, {
       score: self.score,
