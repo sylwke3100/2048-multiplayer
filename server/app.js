@@ -71,7 +71,6 @@ var startCellLocations = function (numLocations, size) {
 setInterval(function () {
   client.llen('gamers', function (err, len) {
     if (err) winston.log('err', err);
-    winston.info('len:', len);
     if (len >= 2) {
       client.lpop('gamers', function (err1, gamer1) {
         if (err1) winston.log('err', err1);
