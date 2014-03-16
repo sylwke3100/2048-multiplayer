@@ -6,11 +6,11 @@ function GameManager(options, InputManager, Actuator, socket) {
   
   if (options.online) {
     this.inputManager = new InputManager (options.player);
-    this.actuator     = new Actuator(1);
+    this.actuator     = new Actuator(1, true);
   }
   else {
     this.inputManager = new InputManager;
-    this.actuator     = new Actuator(0);
+    this.actuator     = new Actuator(0, false);
 
     this.inputManager.on("move", function (direction) {
       socket.send(JSON.stringify({player: options.player, move: direction}));
@@ -90,11 +90,10 @@ GameManager.prototype.addRandomTile = function (cb) {
 // Sends the updated grid to the actuator
 GameManager.prototype.actuate = function () {
   var self = this;
-  var didWeWin = this.movesAvailable() && (this.won || ((window._io.player[this.options.player] > window._io.player[this.otherPlayer]) && (this.over || window._io.gameOver)));
+  var didWeWin = this.movesAvailable() && (this.won || ((window._io.player[this.options.player] > window._io.player[this.options.otherPlayer]) && (this.over || window._io.gameOver)));
   var isItOver = (this.over || window._io.gameOver);
   window._io.addListener(function (msg) {
     if (!(msg.player === self.options.otherPlayer && msg.gameEnd)) return;
-    
     self.over = self.won = true;
     self.actuator.actuate(self.grid, {
       score: self.score,
@@ -187,7 +186,7 @@ GameManager.prototype.move = function (direction) {
     this.addRandomTile(function () {
       if (!self.movesAvailable() || window._io.gameOver) {
         self.over = true; // Game over!
-        self.won = window._io.player[self.options.player] > window._io.player[(self.otherPlayer)];
+        self.won = window._io.player[self.options.player] > window._io.player[(self.options.otherPlayer)];
       }
 
       self.actuate();

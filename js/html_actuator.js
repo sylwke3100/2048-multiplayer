@@ -1,4 +1,7 @@
-function HTMLActuator(elemNum) {
+function HTMLActuator(elemNum, online) {
+  // TEMP 
+  this.online = online;
+
   this.tileContainer    = document.getElementsByClassName("tile-container")[elemNum];
   this.scoreContainer   = document.getElementsByClassName("score-container")[elemNum];
   this.messageContainer = document.getElementsByClassName("game-message")[elemNum];
@@ -8,10 +11,9 @@ function HTMLActuator(elemNum) {
 
 HTMLActuator.prototype.actuate = function (grid, metadata) {
   var self = this;
-
   window.requestAnimationFrame(function () {
     self.clearContainer(self.tileContainer);
-
+    
     grid.cells.forEach(function (column) {
       column.forEach(function (cell) {
         if (cell) {

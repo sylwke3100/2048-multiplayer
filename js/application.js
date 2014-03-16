@@ -1,47 +1,49 @@
 document.addEventListener("DOMContentLoaded", function () {
-  	var waitingInterval;
+  	var waitingInterval, userNumInterval;
   	var sockjs_url = 'http://2048.stolarsky.com:3000/game/sockets', sockjs, multiplexer;
   	
   	// Wait till the browser is ready to render the game (avoids glitches)
  	window.requestAnimationFrame(function () {
 	 	var startNewGame = function () {
-	 			$('#game-start-btn').on('click', function () {
-					$('#player-msg').html('<span style="float:left">Searching for competitor </span>\n<span class="ellipsis">.</span>\n<span class="ellipsis">.</span>\n<span class="ellipsis">.</span>');
-					//$('#player-msg').toggle('text-center');
-					var fadedOut = false;
-					waitingInterval = setInterval(function () {
-					  if (fadedOut) {
-					    $('.ellipsis:eq(0)').fadeIn(500);
-					    setTimeout(function() {
-					      $('.ellipsis:eq(1)').fadeIn(500);
-					      setTimeout(function() {
-					        $('.ellipsis:eq(2)').fadeIn(500);
-					      }, 250);
-					    }, 250);
-					    fadedOut = false;
-					  } 
-					  else {
-					    $('.ellipsis:eq(2)').fadeOut(500);
-					    setTimeout(function() {
-					      $('.ellipsis:eq(1)').fadeOut(500);
-					      setTimeout(function() {
-					        $('.ellipsis:eq(0)').fadeOut(500);
-					      }, 250);
-					    }, 250);
-					    fadedOut = true;
-					  }
-					}, 1500);
-					$.get('http://2048.stolarsky.com:3000/game/new', startGame);
-			  	});
+	 		$('#game-start-btn').on('click', function () {
+				$('#player-msg').html('<span style="float:left">Searching for competitor </span>\n<span class="ellipsis">.</span>\n<span class="ellipsis">.</span>\n<span class="ellipsis">.</span>');
+				$('#game-stats').fadeIn();
+				userNumInterval = setInterval(function () {
+					$.get('http://2048.stolarsky.com:3000/game/players', function (data) {
+						data = JSON.parse(data);
+						$('#num-players').html('Number of current players: ' + data.numPlayers);
+						$('#num-games').html('Number of current games: ' + data.numGames);
+					});
+				}, 1000);
+				var fadedOut = false;
+				waitingInterval = setInterval(function () {
+				  if (fadedOut) {
+				    $('.ellipsis:eq(0)').fadeIn(500);
+				    setTimeout(function() {
+				      $('.ellipsis:eq(1)').fadeIn(500);
+				      setTimeout(function() {
+				        $('.ellipsis:eq(2)').fadeIn(500);
+				      }, 250);
+				    }, 250);
+				    fadedOut = false;
+				  } 
+				  else {
+				    $('.ellipsis:eq(2)').fadeOut(500);
+				    setTimeout(function() {
+				      $('.ellipsis:eq(1)').fadeOut(500);
+				      setTimeout(function() {
+				        $('.ellipsis:eq(0)').fadeOut(500);
+				      }, 250);
+				    }, 250);
+				    fadedOut = true;
+				  }
+				}, 1500);
+				startGame();
+			});
 	 	};
 
-		var startGame = function (data) {
-		  	data = JSON.parse(data);
-		  	var player = data.player;
-		  	sockjs = new SockJS(sockjs_url);
-		  	multiplexer = new WebSocketMultiplex(sockjs);
-			io = multiplexer.channel(data.channel);
-			
+		var startGame = function () {
+		  	io = new SockJS(sockjs_url);
 			window._io = {
 				listeners: [],
 				oneTimeListeners: [],
@@ -61,9 +63,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 
 			io.onopen = function() {
-				// console.log('sockjs: open');
-				if (data.player === 2)
-					io.send(JSON.stringify({player: data.player, start: Date.now() + 5500}));
+				//console.log('sockjs: open');
 			};
 
 			io.onmessage = function(event) {
@@ -83,25 +83,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
 			/* Socket Listeners! */
 			window._io.addListener(function (msg) {
-			    if (msg.player === 0 && msg.size && msg.startCells) {
+			    if (msg.player && msg.size && msg.startCells) {
 			    	window._gameBoard = {};
 			    	window._gameBoard.size = msg.size;
 			    	window._gameBoard.startTiles = msg.startCells;
-			    	
+			    	window._gameBoard.player = msg.player;
 			    }
 			});
 
 			window._io.addOneTimeListener(function (msg) {
-			    //$('#player-msg').toggle('text-center');
 			    clearInterval(waitingInterval);
+				clearInterval(userNumInterval);
 			    $('#player-msg').html('Opponent Found!');
+			    $('#game-stats').fadeOut();
 			    setTimeout(function () {
 			    	window._io.player = {};
 			    	window._io.player['1'] = 0;
 			    	window._io.player['2'] = 0;
 			    	window._io.gameOver = false;
-				   	var opposingPlayer = data.player === 1 ? 2 : 1;
-				    //var timeLeft = msg.start - Date.now();
+				   	var opposingPlayer = window._gameBoard.player === 1 ? 2 : 1;
 				    var times = 3;
 				    var countdown = setInterval(function() {
 						// Countdown messages	
@@ -110,18 +110,16 @@ document.addEventListener("DOMContentLoaded", function () {
 				   		if (times === -1) {
 				   			clearInterval(countdown);
 				   			$('#player-msg').html('<div style="text-align: center"><strong> BEGIN!</strong></div>');
-				   			var localManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, player: data.player, otherPlayer: opposingPlayer, online: false}, KeyboardInputManager, HTMLActuator, io),
-				    			onlineManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, player: opposingPlayer, otherPlayer: data.player, online: true}, OnlineInputManager, HTMLActuator, io);
+				   			var localManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, player: window._gameBoard.player, otherPlayer: opposingPlayer, online: false}, KeyboardInputManager, HTMLActuator, io),
+				    			onlineManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, player: opposingPlayer, otherPlayer: window._gameBoard.player, online: true}, OnlineInputManager, HTMLActuator, io);
 				    		
 				    		var gameOver = function (timer, message, connectionIssue) {
 								message = message || 'Game over!';
 								clearInterval(timer);
 								$('#player-msg').html('<div id="timer"><strong>' + message + '</strong></div>');
 								window._io.gameOver = true;
-								if (connectionIssue) {
-									localManager.actuate();
-									onlineManager.actuate();
-								}
+								localManager.actuate();
+								onlineManager.actuate();
 								setTimeout(function () {
 									$('#player-msg').fadeOut();
 								}, 1000);
@@ -133,7 +131,7 @@ document.addEventListener("DOMContentLoaded", function () {
 									$('#player-msg').html('<a id="game-start-btn" class="btn">Play Again!</a>');
 									startNewGame();
 									window._io.clearListeners();
-									sockjs.close();
+									io.close();
 									$('#game-start-btn').on('click', function () {
 										localManager.restart();
 										onlineManager.restart();
@@ -163,13 +161,12 @@ document.addEventListener("DOMContentLoaded", function () {
 							}, function (msg) {
 								return !!msg.gameEnd;
 							});
-
-							window._io.addOneTimeListener(function (msg) {
-							  	//console.log('msg sent was dead');
-							  	// gameOver(timer, 'Connection Lost :(');
-							}, function (msg) {
-								return !!msg.dead;
-							});
+							// window._io.addOneTimeListener(function (msg) {
+							//   	// console.log('msg sent was dead');
+							//   	gameOver(timer, 'Connection Lost :(');
+							// }, function (msg) {
+							// 	return !!msg.dead;
+							// });
 				   		}
 				   	}, 1000);
 			    }, 1000);
@@ -178,7 +175,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			});
 			
 			io.onclose = function() {
-			    console.log('sockjs: close');
+			    //console.log('sockjs: close');
 			};
 		};
 
