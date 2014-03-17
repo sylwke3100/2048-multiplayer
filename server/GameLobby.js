@@ -7,7 +7,7 @@
 	gamer1 -  a SockJS connection instance of a gamer 
 	gamer2 - a connection instance of a gamer
 */
-function GameLobby (id, gamer1, gamer2, startCells, size, cleanup) {
+function GameLobby (id, gamer1, gname1, gname2, gamer2,  startCells, size, cleanup) {
 	this.id = id;
 	this.gamer1 = gamer1;
 	this.gamer2 = gamer2;
@@ -15,14 +15,13 @@ function GameLobby (id, gamer1, gamer2, startCells, size, cleanup) {
 	this.size = size;
 	this.cleanup = cleanup;
 
-	this.setup(gamer1, 1);
-	this.setup(gamer2, 2);
+	this.setup(gamer1, 1, gname2);
+	this.setup(gamer2, 2, gname1);
 }
 
-GameLobby.prototype.setup = function(gamer, playerNum) {
+GameLobby.prototype.setup = function(gamer, playerNum, gm) {
     var self = this;
-    gamer.write(JSON.stringify({player: playerNum, startCells: this.startCells, size: this.size, start: true}));
-    
+    gamer.write(JSON.stringify({player: playerNum, name: gm, startCells: this.startCells, size: this.size, start: true}));
     gamer.on('data', function(data) {
         self.emit(data);
     });

@@ -1,7 +1,7 @@
-function GameManager(options, InputManager, Actuator, socket) {
+function GameManager(options,playername, InputManager, Actuator, socket) {
   this.size         = options.size; // Size of the grids
   this.options      = options;
-
+  this.name =   playername;
   this.socket = socket;
   
   if (options.online) {

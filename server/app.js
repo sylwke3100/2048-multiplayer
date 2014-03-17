@@ -10,11 +10,13 @@ var http = require('http'),
     client = redis.createClient(),
     gamersHashMap = {},
     gamesBeingPlayed = 0,
-    gameStats = JSON.stringify({numPlayers: 0, numGames: 0}),
+    gameStats = JSON.stringify({numPlayers: 0, numGames: 0, list: {}}),
     channelHashMap = {},
+    userHashMap = {},
     channelId,
     startLocations;
 
+var users = {};
 var CROSS_ORIGIN_HEADERS = {};
 CROSS_ORIGIN_HEADERS['Content-Type'] = 'text/plain';
 CROSS_ORIGIN_HEADERS['Access-Control-Allow-Origin'] = '*';
@@ -38,7 +40,15 @@ var cleanup = function (channelId) {
 
 sockjsServer.on('connection', function(io) {
   client.lpush('gamers', io.id);
+    io.on('data', function(message) {
+        winston.info('data', message);
+	var user = JSON.parse(message)['name'];
+	
+	userHashMap [ io.id] = user != ""? user : io.id;
+	winston.info('Connect user: ',user != ""? user : io.id);
+    });
   io.on('close', function() {
+	userHashMap [ io.id] = void 0;
   	client.lrem('gamers', 0, io.id, function (err, count) {
   		if (err) winston.log('err', err);
   		winston.info('Removed gamer from waiting queue');
@@ -83,7 +93,7 @@ setInterval(function () {
           channelId = uuid.v4();
           startLocations = startCellLocations (2, GRID_SIZE);
           gamesBeingPlayed++;
-          channelHashMap[channelId] = new GameLobby (channelId, gamersHashMap[gamer1], gamersHashMap[gamer2], startLocations, GRID_SIZE, cleanup);
+          channelHashMap[channelId] = new GameLobby (channelId, gamersHashMap[gamer1], userHashMap [ gamer1], userHashMap [gamer2], gamersHashMap[gamer2], startLocations, GRID_SIZE, cleanup);
         });
       });
     }
@@ -95,7 +105,7 @@ setInterval(function () {
     if (err) winston.log('err', err);
     winston.info('Number of current players: ' + (listSize + gamesBeingPlayed * 2));
     winston.info('Number of current games: ' + gamesBeingPlayed);
-    gameStats = JSON.stringify({numPlayers: (listSize + gamesBeingPlayed * 2), numGames: gamesBeingPlayed});
+    gameStats = JSON.stringify({numPlayers: (listSize + gamesBeingPlayed * 2), numGames: gamesBeingPlayed, list: userHashMap});
   });
 }, 1000);
 
@@ -106,7 +116,7 @@ var server = http.createServer(function (req, res) {
     res.end();
   }
   else {
-    res.writeHead(200, {'Content-Type': 'text/html'});
+    res.writeHead(400, {'Content-Type': 'text/html'});
     res.end('Go away <3');
   }
 });

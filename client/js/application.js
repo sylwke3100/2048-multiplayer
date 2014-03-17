@@ -66,6 +66,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 			io.onopen = function() {
 				console.log('sockjs: open');
+				io.send('{"name":"'+ $("input#username").val()+'"}');
 			};
 
 			io.onmessage = function(event) {
@@ -90,9 +91,10 @@ document.addEventListener("DOMContentLoaded", function () {
 			    	window._gameBoard.size = msg.size;
 			    	window._gameBoard.startTiles = msg.startCells;
 			    	window._gameBoard.player = msg.player;
+				window._gameBoard.playername = msg.name;
 			    }
 			});
-
+			
 			window._io.addOneTimeListener(function (msg) {
 			    clearInterval(waitingInterval);
 				clearInterval(userNumInterval);
@@ -103,19 +105,21 @@ document.addEventListener("DOMContentLoaded", function () {
 			    	window._io.player = {};
 			    	window._io.player['1'] = 0;
 			    	window._io.player['2'] = 0;
+				$("div.name-container").html(window._gameBoard.playername);
 			    	window._io.gameOver = false;
 				   	var opposingPlayer = window._gameBoard.player === 1 ? 2 : 1;
 				    var times = 3;
 				    var countdown = setInterval(function() {
 						// Countdown messages
+						
 						$('#player-msg').removeClass('text-center');	
 				   		$('#player-msg').html('<div style="text-align: center">Game Will start in <strong>' + times + '</strong></div>');
 				   		times--;
 				   		if (times === -1) {
 				   			clearInterval(countdown);
 				   			$('#player-msg').html('<div style="text-align: center"><strong> BEGIN!</strong></div>');
-				   			var localManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, player: window._gameBoard.player, otherPlayer: opposingPlayer, online: false}, KeyboardInputManager, HTMLActuator, io),
-				    			onlineManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, player: opposingPlayer, otherPlayer: window._gameBoard.player, online: true}, OnlineInputManager, HTMLActuator, io);
+				   			var localManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, name: $("input#username").val(), player: window._gameBoard.player, otherPlayer: opposingPlayer, online: false}, KeyboardInputManager,  HTMLActuator, io),
+				    			onlineManager = new GameManager({size: window._gameBoard.size, startTiles: window._gameBoard.startTiles, player: opposingPlayer, otherPlayer: window._gameBoard.player, online: true},  OnlineInputManager, HTMLActuator, io);
 				    		
 				    		var gameOver = function (timer, message, connectionIssue) {
 								message = message || 'Game over!';
@@ -147,7 +151,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								}, 3000);
 							};
 
-				   			var gameTimeLeft = 20;//game timer
+				   			var gameTimeLeft = 200;//game timer
 				   			var timer = setInterval(function () {
 								var sec; 
 	    						if (gameTimeLeft % 60 === 0)
@@ -157,6 +161,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	    						else
 	    						 	sec = gameTimeLeft % 60;
 	      						var min = Math.floor(gameTimeLeft/60);
+								
 				   				$('#player-msg').html('<div id="timer"><strong>' + min + ':' + sec + '</strong></div>');
 				   				gameTimeLeft--;
 				   				if (gameTimeLeft === -1) {
